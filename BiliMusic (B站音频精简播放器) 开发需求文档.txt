@@ -1,0 +1,385 @@
+BiliMusic (B站音频精简播放器) 开发需求文档
+
+1. 项目概述
+
+项目愿景： 打造一个基于网页的迷你音乐播放器，用户只需输入 Bilibili 的视频或合集链接，即可提取其音频流并作为歌单播放。
+核心价值： 解决 Bilibili 听歌/听播客时必须打开笨重网页、消耗视频流量的痛点；提供类似“QQ音乐迷你模式”的沉浸式桌面悬浮体验。
+最终形态： 纯网页端应用（支持通过 Chrome/Edge 的 Document PiP API 实现桌面全局悬浮）。
+
+2. 核心功能需求
+
+2.1 链接解析与数据提取
+
+输入支持： 支持标准的 B站视频链接（含 bilibili.com 或 b23.tv）。
+
+数据抓取： * 提取总标题（作为专辑名）。
+
+提取视频封面（作为旋转的唱片封面）。
+
+提取分 P 列表（如果是多 P 视频或合集），作为播放列表。
+
+获取底层纯音频流地址（通常为 .m4a 格式）。
+
+2.2 播放器交互逻辑
+
+基础控制： 播放/暂停、上一首、下一首、列表歌曲双击切歌。
+
+状态显示： * 播放时封面需匀速旋转。
+
+列表当前播放项高亮，并显示动态的音频跳动图标（Bounce 动画）。
+
+初始化状态： 默认全空状态，封面置灰，列表提示用户输入链接。
+
+2.3 桌面悬浮（画中画）功能
+
+技术实现： 使用最新的 Web API DocumentPictureInPicture。
+
+功能表现： 点击界面右上角“画中画”按钮后，整个播放器 UI 需脱离当前网页，生成一个系统级的无边框悬浮窗，永远置顶在桌面最前端。
+
+降级处理： 需检测浏览器兼容性及 iframe 环境限制，不支持时给予友好的弹窗提示。
+
+3. 技术栈建议
+
+由于涉及到跨域限制和 B站的防盗链机制，纯前端无法独立完成，必须采用 前后端分离 或 Serverless/Next.js 的架构。
+
+前端 (Frontend)：
+
+框架：React.js (已有高保真原型代码，可直接复用 UI)。
+
+样式：Tailwind CSS。
+
+图标：Lucide-React。
+
+音频控制：HTML5 <audio> API 或基于 howler.js 封装。
+
+后端/代理 (Backend)：
+
+语言/框架：Node.js (Express/Koa) 或 Python (FastAPI)。
+
+核心依赖：建议参考开源库（如 bilibili-api），用于模拟请求获取 BVID、CID 和 playurl。
+
+4. 后端接口设计要求 (给后端开发者的重点)
+
+前端需要一个聚合接口，以简化客户端逻辑。
+
+请求 Endpoint: GET /api/parse?url={bilibili_url}
+
+后端处理逻辑要求：
+
+解析 URL 获取 bvid。
+
+调用 B站 API 获取该视频的 pages (分P列表) 和视频基本信息(封面、标题)。
+
+防盗链处理（极其重要）： B站的音频直链（playurl）有严格的 Referer 校验。后端必须提供音频流的代理转发，或者在前端请求音频时，后端协助伪装 Referer。 最稳妥的做法是后端拉取音频流然后 pipe 给前端，或者解析出包含鉴权参数的直链。
+
+预期返回 JSON 格式：
+
+{
+  "code": 200,
+  "data": {
+    "albumTitle": "CityPOP 🎵 | 泡沫经济 | 复古精选合集",
+    "coverUrl": "https://...",
+    "playlist": [
+      {
+        "id": "cid_12345",
+        "title": "谁不喜欢充满朝气的周末呢",
+        "duration": "39:42",
+        "audioUrl": "后端代理的音频流地址或有效直链"
+      },
+      // ... 其他分P
+    ]
+  }
+}
+
+
+5. 前端开发任务清单 (给前端开发者的重点)
+
+对接现有 UI： 导入目前已提供的 App.jsx 原型代码。
+
+状态管理： 将原型的 setTimeout 模拟数据替换为真实的 fetch API 请求。
+
+音频引擎接入： * 在组件中引入隐式的 <audio src={currentSong.audioUrl} /> 标签。
+
+监听 timeupdate、ended 等事件。
+
+实现自动播放下一首 (onEnded 触发 playNext)。
+
+PiP 样式兼容： 确保在调用 requestWindow() 将 DOM 节点移入画中画窗口时，Tailwind 的 CSS 样式能正确被复制或 link 到新窗口的 <head> 中（原型中已包含基础的复制逻辑，需确保在打包环境中生效）。
+
+6. 常见风险与规避建议
+
+B站 API 限制： 频繁解析可能触发 B站风控限制（如需要 SESSDATA）。建议： 初期尽量使用不需要登录的公开 API 获取清晰度较低的音频流即可，或者在后端配置一组备用 Cookie。
+
+CORS 跨域报错： 前端直接请求 B站图片或音频必定报 CORS 错误。建议： 封面图片使用 <img referrerPolicy="no-referrer" />；音频必须走自己的后端代理。
+
+目前有开发的demo代码：
+import React, { useState, useRef, useEffect } from 'react';
+import { Play, Pause, SkipBack, SkipForward, ListMusic, X, Search, Loader2, PictureInPicture, Music } from 'lucide-react';
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [pipWindow, setPipWindow] = useState(null);
+  
+  // 核心状态：播放列表默认空，增加专辑/视频总标题
+  const [albumTitle, setAlbumTitle] = useState('等待解析...');
+  const [coverUrl, setCoverUrl] = useState('');
+  const [playlist, setPlaylist] = useState([]);
+  const [currentSongIndex, setCurrentSongIndex] = useState(-1);
+
+  const playerContainerRef = useRef(null);
+  const originalParentRef = useRef(null);
+
+  const currentSong = currentSongIndex >= 0 ? playlist[currentSongIndex] : null;
+
+  // 模拟解析 Bilibili 链接
+  const handleParseBilibili = (e) => {
+    e.preventDefault();
+    if (!urlInput.includes('bilibili.com') && !urlInput.includes('b23.tv')) {
+      alert("请输入有效的 Bilibili 视频或合集链接！");
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    // 模拟网络请求和后端解析的延迟
+    setTimeout(() => {
+      // 模拟解析出的数据
+      setAlbumTitle('CityPOP 🎵 | 泡沫经济 | 复古精选合集');
+      setCoverUrl('https://images.unsplash.com/photo-1614680376593-902f74cf0d41?auto=format&fit=crop&q=80&w=200');
+      setPlaylist([
+        { id: 101, title: '谁不喜欢充满朝气的周末呢', duration: '39:42' },
+        { id: 102, title: '夜间复古精选合集 | 驾驶必备', duration: '47:35' },
+        { id: 103, title: '昭和歌单 | 复古经典旋律', duration: '46:07' },
+        { id: 104, title: '复古昭和Playlist | 松原美纪', duration: '44:08' },
+      ]);
+      setCurrentSongIndex(0);
+      setIsPlaying(true);
+      setIsLoading(false);
+      setUrlInput('');
+    }, 1500);
+  };
+
+  const togglePlay = () => {
+    if (playlist.length === 0) return;
+    setIsPlaying(!isPlaying);
+  };
+  
+  const playNext = () => {
+    if (playlist.length === 0) return;
+    setCurrentSongIndex((prev) => (prev + 1) % playlist.length);
+  };
+  
+  const playPrev = () => {
+    if (playlist.length === 0) return;
+    setCurrentSongIndex((prev) => (prev - 1 + playlist.length) % playlist.length);
+  };
+
+  // 开启/关闭 文档画中画 (Document PiP) - 实现悬浮窗口
+  const togglePiP = async () => {
+    if (pipWindow) {
+      pipWindow.close();
+      return;
+    }
+
+    // 安全检测：判断当前是否在 iframe 沙箱环境中运行
+    let inIframe = false;
+    try {
+      inIframe = window.self !== window.top;
+    } catch (e) {
+      // 如果跨域限制导致访问 window.top 报错，说明一定在 iframe 中
+      inIframe = true; 
+    }
+
+    if (inIframe) {
+      alert("⚠️ 浏览器安全限制：\n\n【画中画悬浮窗】功能无法在当前的网页预览沙箱（iframe）中调用。\n\n如需体验悬浮在桌面的效果，请将此代码部署为独立的网页，或在本地浏览器中直接打开。");
+      return;
+    }
+
+    if ('documentPictureInPicture' in window) {
+      try {
+        const pip = await window.documentPictureInPicture.requestWindow({
+          width: 380,
+          height: 450,
+        });
+
+        // 复制当前页面的样式到画中画窗口，确保 Tailwind 和自定义样式生效
+        [...document.styleSheets].forEach((styleSheet) => {
+          try {
+            const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
+            const style = document.createElement('style');
+            style.textContent = cssRules;
+            pip.document.head.appendChild(style);
+          } catch (e) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = styleSheet.href;
+            pip.document.head.appendChild(link);
+          }
+        });
+
+        // 保存原本的父节点，并将播放器移动到画中画窗口
+        originalParentRef.current = playerContainerRef.current.parentNode;
+        pip.document.body.appendChild(playerContainerRef.current);
+        pip.document.body.style.margin = '0';
+        pip.document.body.style.backgroundColor = 'transparent';
+
+        // 监听画中画关闭事件，把播放器移回原页面
+        pip.addEventListener('pagehide', () => {
+          originalParentRef.current.appendChild(playerContainerRef.current);
+          setPipWindow(null);
+        });
+
+        setPipWindow(pip);
+      } catch (error) {
+        console.error("画中画开启失败:", error);
+        alert("开启悬浮窗失败。请确保你的浏览器支持并允许了 Document PiP API。");
+      }
+    } else {
+      alert("你的浏览器不支持文档画中画功能，请升级到最新版 Chrome 或 Edge。");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-neutral-800 flex flex-col items-center justify-center p-4 font-sans relative" id="main-container">
+      
+      {!pipWindow && (
+        <div className="absolute top-10 text-neutral-400 text-sm text-center max-w-md">
+          <p className="mb-2">💡 提示1：输入包含 "bilibili.com" 的文本体验【空列表加载数据】的过程。</p>
+          <p>💡 提示2：点击右上角的 <PictureInPicture size={14} className="inline" /> 按钮，体验【置顶悬浮窗】(需独立网页环境)。</p>
+        </div>
+      )}
+
+      {/* 播放器容器，可以被整个移动到画中画窗口 */}
+      <div 
+        ref={playerContainerRef}
+        className="w-[360px] bg-[#f5f5f5] rounded-xl shadow-2xl relative transition-all duration-300 overflow-hidden"
+      >
+        {/* 顶部输入框区 */}
+        <div className="bg-white p-3 border-b border-gray-100 flex items-center gap-2">
+          <Search size={16} className="text-gray-400" />
+          <form onSubmit={handleParseBilibili} className="flex-1">
+            <input 
+              type="text" 
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="在此粘贴 B站 视频/合集链接..."
+              className="w-full text-sm outline-none bg-transparent placeholder-gray-400 text-gray-700"
+            />
+          </form>
+          {isLoading && <Loader2 size={16} className="text-[#1acc8b] animate-spin" />}
+        </div>
+
+        {/* 控制区栏 */}
+        <div className="bg-white relative p-4 pb-2 h-28 flex flex-col justify-end">
+          
+          {/* 左侧悬浮封面 */}
+          <div className={`absolute -top-4 left-4 w-20 h-20 rounded-full border-4 border-white shadow-md overflow-hidden bg-gray-100 flex items-center justify-center transition-all duration-500 ${playlist.length === 0 ? 'opacity-50 grayscale' : ''}`}>
+            {coverUrl ? (
+              <img 
+                src={coverUrl} 
+                alt="Cover" 
+                className={`w-full h-full object-cover ${isPlaying ? 'animate-[spin_10s_linear_infinite]' : ''}`}
+                style={{ animationPlayState: isPlaying ? 'running' : 'paused' }}
+              />
+            ) : (
+              <Music size={32} className="text-gray-300" />
+            )}
+          </div>
+
+          {/* 右上角操作按钮 (画中画) */}
+          <div className="absolute top-2 right-2 flex gap-2">
+            <button 
+              onClick={togglePiP} 
+              title="独立悬浮窗口 (置顶)"
+              className="p-1.5 text-gray-400 hover:text-[#1acc8b] hover:bg-green-50 rounded-md transition-colors"
+            >
+              <PictureInPicture size={16} />
+            </button>
+            <button className="p-1.5 text-gray-400 hover:text-gray-800 rounded-md transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* 解析出的总标题显示 */}
+          <div className="ml-24 mb-1 pr-2">
+            <div className="text-xs font-semibold text-gray-800 truncate" title={albumTitle}>
+              {albumTitle}
+            </div>
+            <div className="text-[10px] text-gray-400 truncate mt-0.5">
+              {currentSong ? `正在播放: ${currentSong.title}` : '当前无播放任务'}
+            </div>
+          </div>
+
+          {/* 播放控制按钮 */}
+          <div className="flex items-center gap-5 ml-24 mt-2 mb-1">
+            <button onClick={playPrev} className={`${playlist.length > 0 ? 'text-[#1acc8b] hover:text-[#15a36f]' : 'text-gray-300 cursor-not-allowed'} transition-colors`}>
+              <SkipBack size={20} fill="currentColor" />
+            </button>
+            <button 
+              onClick={togglePlay} 
+              className={`w-9 h-9 rounded-full flex items-center justify-center text-white transition-colors shadow-md 
+                ${playlist.length > 0 ? 'bg-[#1acc8b] hover:bg-[#15a36f] shadow-green-200' : 'bg-gray-300 shadow-none cursor-not-allowed'}`}
+            >
+              {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
+            </button>
+            <button onClick={playNext} className={`${playlist.length > 0 ? 'text-black hover:text-gray-700' : 'text-gray-300 cursor-not-allowed'} transition-colors`}>
+              <SkipForward size={20} fill="currentColor" />
+            </button>
+            <button className="text-gray-400 hover:text-gray-800 transition-colors ml-auto">
+              <ListMusic size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* 歌曲列表区 */}
+        <div className="bg-[#f5f5f5] py-2 h-[240px] overflow-y-auto">
+          {playlist.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-3">
+              <Music size={48} className="text-gray-200" />
+              <p className="text-sm">列表空空如也</p>
+              <p className="text-xs text-gray-400 max-w-[80%] text-center">
+                在上方粘贴 Bilibili 视频链接，自动提取播放列表和音频
+              </p>
+            </div>
+          ) : (
+            playlist.map((song, index) => (
+              <div 
+                key={song.id} 
+                onDoubleClick={() => { setCurrentSongIndex(index); setIsPlaying(true); }}
+                className={`group flex items-center justify-between px-6 py-2.5 hover:bg-white cursor-pointer transition-colors border-l-2
+                  ${currentSongIndex === index ? 'border-[#1acc8b] bg-white text-[#1acc8b]' : 'border-transparent text-[#333333]'}`}
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <span className="text-xs w-4 text-center text-gray-400">{index + 1}</span>
+                  <span className="truncate text-[13px] font-medium leading-none ml-1">
+                    {song.title}
+                  </span>
+                  {currentSongIndex === index && isPlaying && (
+                    <div className="flex gap-[2px] h-3 items-end ml-2">
+                      <div className="w-[2px] bg-[#1acc8b] animate-[bounce_1s_infinite] h-2"></div>
+                      <div className="w-[2px] bg-[#1acc8b] animate-[bounce_1.2s_infinite] h-3"></div>
+                      <div className="w-[2px] bg-[#1acc8b] animate-[bounce_0.8s_infinite] h-1.5"></div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="text-xs text-gray-400 group-hover:hidden">
+                  {song.duration}
+                </div>
+
+                {/* 悬停时显示的播放图标 */}
+                <div className="hidden group-hover:flex items-center gap-2 text-gray-400">
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentSongIndex(index); setIsPlaying(true); }} className="hover:text-[#1acc8b]">
+                    <Play size={16} fill="currentColor" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
