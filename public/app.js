@@ -1,4 +1,4 @@
-const COOKIE_NAME = 'bili_music_links';
+﻿const COOKIE_NAME = 'bili_music_links';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
 
 const state = {
@@ -13,6 +13,7 @@ const state = {
   pipWindow: null,
   originalParent: null,
   isPlaylistCollapsed: false,
+  audioQuality: 'high',
 };
 
 const dom = {
@@ -38,8 +39,14 @@ const dom = {
   toggleListBtn: document.getElementById('toggle-list-btn'),
   volumeSlider: document.getElementById('volume-slider'),
   volumeText: document.getElementById('volume-text'),
+  qualityBtn: document.getElementById('quality-btn'),
   audio: document.getElementById('audio'),
 };
+
+function buildAudioUrl(url, quality) {
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}quality=${quality}`;
+}
 
 function currentSong() {
   if (state.currentSongIndex < 0 || state.currentSongIndex >= state.playlist.length) return null;
@@ -88,6 +95,7 @@ function saveSourceLinksToCookie() {
 function loadSourceLinksFromCookie() {
   const raw = getCookie(COOKIE_NAME);
   if (!raw) return [];
+
   try {
     const links = JSON.parse(raw);
     if (!Array.isArray(links)) return [];
@@ -105,14 +113,14 @@ function updateVolumeUI() {
 
 function updateMetaFromCurrentSong() {
   const song = currentSong();
-  if (song) {
-    state.albumTitle = song.albumTitle || '未知专辑';
-    state.coverUrl = song.coverUrl || '';
-  }
+  if (!song) return;
+  state.albumTitle = song.albumTitle || '未知专辑';
+  state.coverUrl = song.coverUrl || '';
 }
 
 function updateCover() {
   const hasCover = Boolean(state.coverUrl);
+
   if (hasCover) {
     dom.coverImg.src = state.coverUrl;
     dom.coverImg.classList.remove('hidden');
@@ -134,6 +142,9 @@ function updateControls() {
   dom.playBtn.disabled = !hasList;
   dom.playBtn.textContent = state.isPlaying ? '⏸' : '▶';
   dom.toggleListBtn.textContent = state.isPlaylistCollapsed ? '▸' : '▾';
+  dom.qualityBtn.textContent = state.audioQuality === 'low' ? 'L' : 'H';
+  dom.qualityBtn.title = state.audioQuality === 'low' ? '省流模式 (Low bitrate)' : '高码率模式 (High bitrate)';
+  dom.qualityBtn.classList.toggle('low', state.audioQuality === 'low');
 }
 
 function updateMeta() {
@@ -151,7 +162,7 @@ function renderPlaylist() {
       <div class="empty-state">
         <div style="font-size:44px; color:#d5d5d5;">♪</div>
         <div style="font-size:14px;">列表空空如也</div>
-        <p class="note">点击右上角「＋」添加 Bilibili 视频/合集链接，可累计多个歌单</p>
+        <p class="note">点击右上角「+」添加 Bilibili / YouTube 链接，可累计多个歌单</p>
       </div>
     `;
     return;
@@ -163,11 +174,17 @@ function renderPlaylist() {
   state.playlist.forEach((song, idx) => {
     if (song.albumId !== currentAlbum) {
       currentAlbum = song.albumId;
-      html += `<div class="album-row">${escapeHtml(song.albumTitle || '未命名歌单')}</div>`;
+      html += `
+        <div class="album-row">
+          <span class="album-title-text">${escapeHtml(song.albumTitle || '未命名歌单')}</span>
+          <button class="album-remove" data-album-id="${escapeHtml(song.albumId)}" title="删除该歌单">-</button>
+        </div>
+      `;
     }
 
     const active = idx === state.currentSongIndex;
     const playingClass = active && state.isPlaying ? 'playing' : '';
+
     html += `
       <article class="track ${active ? 'active' : ''} ${playingClass}" data-index="${idx}" title="双击播放">
         <div class="track-left">
@@ -175,7 +192,7 @@ function renderPlaylist() {
           <span class="track-title">${escapeHtml(song.title)}</span>
           <span class="equalizer"><i></i><i></i><i></i></span>
         </div>
-        <span class="track-right">${song.duration}</span>
+        <span class="track-right">${song.duration || '--:--'}</span>
       </article>
     `;
   });
@@ -183,9 +200,50 @@ function renderPlaylist() {
   dom.playlist.innerHTML = html;
 }
 
+function removeAlbum(albumId) {
+  const currentId = currentSong()?.id || null;
+  const album = state.albums.find((item) => item.id === albumId);
+  if (!album) return;
+
+  state.albums = state.albums.filter((item) => item.id !== albumId);
+  state.playlist = state.playlist.filter((track) => track.albumId !== albumId);
+  state.sourceLinks = state.sourceLinks.filter((link) => link !== album.sourceUrl);
+  if (state.sourceLinks.length > 0) saveSourceLinksToCookie();
+  else clearCookie(COOKIE_NAME);
+
+  if (state.playlist.length === 0) {
+    state.currentSongIndex = -1;
+    state.isPlaying = false;
+    dom.audio.pause();
+    dom.audio.removeAttribute('src');
+    dom.audio.load();
+    updateAll();
+    return;
+  }
+
+  let nextIndex = currentId ? state.playlist.findIndex((track) => track.id === currentId) : -1;
+  if (nextIndex < 0) {
+    nextIndex = Math.min(state.currentSongIndex, state.playlist.length - 1);
+  }
+  state.currentSongIndex = Math.max(0, nextIndex);
+  syncAudioFromState({ autoPlay: state.isPlaying });
+  updateAll();
+}
+
+function updateAll() {
+  updateMetaFromCurrentSong();
+  updateMeta();
+  updateCover();
+  updateControls();
+  renderPlaylist();
+  updateVolumeUI();
+}
+
 function syncAudioFromState({ autoPlay = false } = {}) {
   const song = currentSong();
+
   if (!song) {
+    dom.audio.pause();
     dom.audio.removeAttribute('src');
     dom.audio.load();
     state.isPlaying = false;
@@ -193,9 +251,11 @@ function syncAudioFromState({ autoPlay = false } = {}) {
     return;
   }
 
-  if (dom.audio.dataset.songId !== song.id) {
-    dom.audio.src = song.audioUrl;
-    dom.audio.dataset.songId = song.id;
+  const nextUrl = buildAudioUrl(song.audioUrl, state.audioQuality);
+  const nextSourceKey = `${song.id}|${state.audioQuality}`;
+  if (dom.audio.dataset.sourceKey !== nextSourceKey) {
+    dom.audio.src = nextUrl;
+    dom.audio.dataset.sourceKey = nextSourceKey;
     dom.audio.load();
   }
 
@@ -214,27 +274,16 @@ function syncAudioFromState({ autoPlay = false } = {}) {
   }
 }
 
-function updateAll() {
-  updateMetaFromCurrentSong();
-  updateMeta();
-  updateCover();
-  updateControls();
-  renderPlaylist();
-  updateVolumeUI();
-}
-
 function playNext() {
   if (state.playlist.length === 0) return;
   state.currentSongIndex = (state.currentSongIndex + 1) % state.playlist.length;
   syncAudioFromState({ autoPlay: true });
-  updateAll();
 }
 
 function playPrev() {
   if (state.playlist.length === 0) return;
   state.currentSongIndex = (state.currentSongIndex - 1 + state.playlist.length) % state.playlist.length;
   syncAudioFromState({ autoPlay: true });
-  updateAll();
 }
 
 function togglePlay() {
@@ -256,129 +305,16 @@ function togglePlay() {
     .catch(() => setError('播放失败，请重试。'));
 }
 
-function clearAll() {
-  state.isPlaying = false;
-  state.playlist = [];
-  state.albums = [];
-  state.sourceLinks = [];
-  state.albumTitle = '等待解析...';
-  state.coverUrl = '';
-  state.currentSongIndex = -1;
-  dom.audio.pause();
-  dom.audio.removeAttribute('src');
-  dom.audio.load();
-  dom.urlInput.value = '';
-  clearCookie(COOKIE_NAME);
-  updateAll();
-}
-
-function validateUrl(input) {
-  return input.includes('bilibili.com') || input.includes('b23.tv');
-}
-
-function openAddModal() {
-  dom.addModal.classList.remove('hidden');
-  dom.urlInput.focus();
-}
-
-function closeAddModal() {
-  dom.addModal.classList.add('hidden');
-  dom.urlInput.value = '';
-}
-
-function appendParsedData(sourceUrl, data) {
-  const albumId = `${data.bvid}_${Date.now()}`;
-  const album = {
-    id: albumId,
-    sourceUrl,
-    title: data.albumTitle || '未知歌单',
-    coverUrl: data.coverUrl || '',
-  };
-
-  const tracks = (data.playlist || []).map((song, index) => ({
-    id: `${albumId}_${song.id}_${index}`,
-    title: song.title,
-    duration: song.duration,
-    audioUrl: song.audioUrl,
-    albumId,
-    albumTitle: album.title,
-    coverUrl: album.coverUrl,
-  }));
-
-  state.albums.push(album);
-  state.playlist = [...state.playlist, ...tracks];
-
-  if (state.currentSongIndex < 0 && tracks.length > 0) {
-    state.currentSongIndex = 0;
-  }
-}
-
-async function parseBilibili(url, { autoPlay = false, silent = false } = {}) {
-  setLoading(true);
-  try {
-    const response = await fetch(`/api/parse?url=${encodeURIComponent(url)}`);
-    const payload = await response.json();
-
-    if (!response.ok || payload.code !== 200 || !payload.data) {
-      throw new Error(payload.message || '解析失败');
-    }
-
-    if (!Array.isArray(payload.data.playlist) || payload.data.playlist.length === 0) {
-      throw new Error('该链接没有解析出可播放的列表。');
-    }
-
-    appendParsedData(url, payload.data);
-
-    if (!state.sourceLinks.includes(url)) {
-      state.sourceLinks.push(url);
-      state.sourceLinks = state.sourceLinks.slice(0, 10);
-      saveSourceLinksToCookie();
-    }
-
-    if (autoPlay && state.currentSongIndex >= 0) {
-      state.isPlaying = true;
-      syncAudioFromState({ autoPlay: true });
-    }
-
-    updateAll();
-  } catch (error) {
-    if (!silent) setError(error.message || '解析失败，请稍后重试');
-  } finally {
-    setLoading(false);
-  }
-}
-
-async function restoreFromCookie() {
-  const links = loadSourceLinksFromCookie();
-  if (links.length === 0) return;
-
-  state.sourceLinks = [];
-  for (const link of links) {
-    await parseBilibili(link, { autoPlay: false, silent: true });
-  }
-
-  state.isPlaying = false;
-  if (state.currentSongIndex >= 0) {
-    syncAudioFromState({ autoPlay: false });
-  }
+function toggleQuality() {
+  state.audioQuality = state.audioQuality === 'high' ? 'low' : 'high';
+  const shouldAutoPlay = state.isPlaying;
+  syncAudioFromState({ autoPlay: shouldAutoPlay });
   updateAll();
 }
 
 function setupDocumentPiP() {
   if (state.pipWindow) {
     state.pipWindow.close();
-    return;
-  }
-
-  let inIframe = false;
-  try {
-    inIframe = window.self !== window.top;
-  } catch {
-    inIframe = true;
-  }
-
-  if (inIframe) {
-    setError('当前运行在 iframe 环境，浏览器限制导致无法开启画中画悬浮窗。请在独立页面打开后重试。');
     return;
   }
 
@@ -423,8 +359,128 @@ function setupDocumentPiP() {
       });
     })
     .catch(() => {
-      setError('画中画开启失败，请确认浏览器权限或重试。');
+      setError('画中画开启失败，请检查浏览器权限后重试。');
     });
+}
+
+function clearAll() {
+  state.isPlaying = false;
+  state.playlist = [];
+  state.albums = [];
+  state.sourceLinks = [];
+  state.albumTitle = '等待解析...';
+  state.coverUrl = '';
+  state.currentSongIndex = -1;
+
+  dom.audio.pause();
+  dom.audio.removeAttribute('src');
+  dom.audio.load();
+
+  dom.urlInput.value = '';
+  clearCookie(COOKIE_NAME);
+  updateAll();
+}
+
+function validateUrl(input) {
+  const lowered = input.toLowerCase();
+  return (
+    lowered.includes('bilibili.com') ||
+    lowered.includes('b23.tv') ||
+    lowered.includes('youtube.com') ||
+    lowered.includes('youtu.be')
+  );
+}
+
+function openAddModal() {
+  dom.addModal.classList.remove('hidden');
+  dom.urlInput.focus();
+}
+
+function closeAddModal() {
+  dom.addModal.classList.add('hidden');
+  dom.urlInput.value = '';
+}
+
+function appendParsedData(sourceUrl, data) {
+  const sourceId = data.sourceId || data.bvid || 'unknown_source';
+  const albumId = `${sourceId}_${Date.now()}`;
+
+  const album = {
+    id: albumId,
+    sourceUrl,
+    title: data.albumTitle || '未知歌单',
+    coverUrl: data.coverUrl || '',
+  };
+
+  const tracks = (data.playlist || []).map((song, index) => ({
+    id: `${albumId}_${song.id}_${index}`,
+    title: song.title || `Track ${index + 1}`,
+    duration: song.duration || '--:--',
+    audioUrl: song.audioUrl,
+    albumId,
+    albumTitle: album.title,
+    coverUrl: album.coverUrl,
+  }));
+
+  state.albums.push(album);
+  state.playlist = [...state.playlist, ...tracks];
+
+  if (state.currentSongIndex < 0 && tracks.length > 0) {
+    state.currentSongIndex = 0;
+  }
+}
+
+async function parseSource(url, { autoPlay = false, silent = false } = {}) {
+  setLoading(true);
+
+  try {
+    const response = await fetch(`/api/parse?url=${encodeURIComponent(url)}`);
+    const payload = await response.json();
+
+    if (!response.ok || payload.code !== 200 || !payload.data) {
+      throw new Error(payload.message || '解析失败');
+    }
+
+    if (!Array.isArray(payload.data.playlist) || payload.data.playlist.length === 0) {
+      throw new Error('该链接没有解析出可播放的列表。');
+    }
+
+    appendParsedData(url, payload.data);
+
+    if (!state.sourceLinks.includes(url)) {
+      state.sourceLinks.push(url);
+      state.sourceLinks = state.sourceLinks.slice(0, 10);
+      saveSourceLinksToCookie();
+    }
+
+    if (autoPlay && state.currentSongIndex >= 0) {
+      state.isPlaying = true;
+      syncAudioFromState({ autoPlay: true });
+    }
+
+    updateAll();
+  } catch (error) {
+    if (!silent) setError(error.message || '解析失败，请稍后重试。');
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function restoreFromCookie() {
+  const links = loadSourceLinksFromCookie();
+  if (links.length === 0) return;
+
+  state.sourceLinks = [];
+  for (const link of links) {
+    await parseSource(link, { autoPlay: false, silent: true });
+  }
+
+  state.isPlaying = false;
+  if (state.currentSongIndex >= 0) {
+    syncAudioFromState({ autoPlay: false });
+  }
+
+  updateAll();
 }
 
 function bindEvents() {
@@ -433,6 +489,7 @@ function bindEvents() {
   dom.nextBtn.addEventListener('click', playNext);
   dom.clearBtn.addEventListener('click', clearAll);
   dom.pipBtn.addEventListener('click', setupDocumentPiP);
+  dom.qualityBtn.addEventListener('click', toggleQuality);
 
   dom.addLinkBtn.addEventListener('click', openAddModal);
   dom.cancelAddBtn.addEventListener('click', closeAddModal);
@@ -445,7 +502,7 @@ function bindEvents() {
     const url = dom.urlInput.value.trim();
 
     if (!validateUrl(url)) {
-      setError('请输入有效的 Bilibili 视频或合集链接。');
+      setError('请输入有效的 Bilibili 或 YouTube 链接。');
       return;
     }
 
@@ -455,7 +512,7 @@ function bindEvents() {
     }
 
     const shouldAutoplay = state.playlist.length === 0;
-    await parseBilibili(url, { autoPlay: shouldAutoplay, silent: false });
+    await parseSource(url, { autoPlay: shouldAutoplay, silent: false });
     closeAddModal();
   });
 
@@ -464,28 +521,23 @@ function bindEvents() {
     updateAll();
   });
 
-  dom.playlist.addEventListener('dblclick', (event) => {
-    const track = event.target.closest('.track');
-    if (!track) return;
-    const index = Number(track.dataset.index);
-    if (Number.isNaN(index)) return;
-
-    state.currentSongIndex = index;
-    state.isPlaying = true;
-    syncAudioFromState({ autoPlay: true });
-    updateAll();
-  });
-
   dom.playlist.addEventListener('click', (event) => {
+    const removeBtn = event.target.closest('.album-remove');
+    if (removeBtn) {
+      const albumId = removeBtn.dataset.albumId;
+      if (albumId) removeAlbum(albumId);
+      return;
+    }
+
     const track = event.target.closest('.track');
     if (!track) return;
+
     const index = Number(track.dataset.index);
     if (Number.isNaN(index)) return;
 
     state.currentSongIndex = index;
     state.isPlaying = true;
     syncAudioFromState({ autoPlay: true });
-    updateAll();
   });
 
   dom.audio.addEventListener('play', () => {

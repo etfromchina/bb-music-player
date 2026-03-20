@@ -1,15 +1,15 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BiliMusic - B站音频精简播放器</title>
+    <title>BiliMusic - B站/YouTube 音频精简播放器</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="page" id="main-container">
       <section class="tips" id="tips">
-        <p>提示：点列表右上角「＋」添加 Bilibili 链接，可持续追加到当前歌单并自动保存。</p>
+        <p>提示：点列表右上角「+」添加 Bilibili 或 YouTube 链接，可持续追加到当前歌单并自动保存。</p>
       </section>
 
       <section class="player" id="player-container">
@@ -20,7 +20,7 @@
           </div>
 
           <div class="actions-top">
-            <button id="pip-btn" class="icon-btn" title="独立悬浮窗口 (置顶)">🪟</button>
+            <button id="pip-btn" class="icon-btn" title="独立悬浮窗口 (置顶)">▣</button>
             <button id="clear-btn" class="icon-btn" title="清空列表">✕</button>
           </div>
 
@@ -39,6 +39,7 @@
             <span class="volume-icon">🔊</span>
             <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.8" />
             <span id="volume-text" class="volume-text">80%</span>
+            <button id="quality-btn" class="icon-btn quality-btn" title="切换音质">H</button>
           </div>
         </section>
 
@@ -47,7 +48,7 @@
             <p class="playlist-title">播放列表</p>
             <div class="playlist-actions">
               <button id="add-link-btn" class="icon-btn" title="添加链接">＋</button>
-              <button id="toggle-list-btn" class="icon-btn" title="展开/收起列表">▾</button>
+              <button id="toggle-list-btn" class="icon-btn" title="展开/收起列表">◧</button>
             </div>
           </header>
           <section id="playlist" class="playlist"></section>
@@ -56,9 +57,13 @@
 
       <section id="add-modal" class="modal hidden" aria-hidden="true">
         <div class="modal-card">
-          <p class="modal-title">添加 Bilibili 链接</p>
+          <p class="modal-title">添加链接</p>
           <form id="add-form" class="modal-form">
-            <input id="url-input" type="text" placeholder="粘贴视频/合集链接（支持 bilibili.com、b23.tv）" />
+            <input
+              id="url-input"
+              type="text"
+              placeholder="粘贴视频链接（支持 bilibili.com / b23.tv / youtube.com / youtu.be）"
+            />
             <div class="modal-actions">
               <button type="button" id="cancel-add-btn" class="btn-muted">取消</button>
               <button type="submit" id="confirm-add-btn" class="btn-primary">解析并添加</button>
