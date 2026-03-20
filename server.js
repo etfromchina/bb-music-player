@@ -2,12 +2,13 @@
 import cors from 'cors';
 import axios from 'axios';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { spawn } from 'child_process';
 import ytdl from '@distube/ytdl-core';
 
 const app = express();
-const PORT = process.env.PORT || 30030;
+const DEFAULT_PORT = Number(process.env.PORT) || 30030;
+let activeServer = null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -529,6 +530,40 @@ app.get('*', (_, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`BiliMusic running at http://localhost:${PORT}`);
-});
+export async function startServer({ port = DEFAULT_PORT, host = '0.0.0.0', silent = false } = {}) {
+  if (activeServer?.listening) {
+    return { app, server: activeServer, port, host };
+  }
+
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, host, () => {
+      activeServer = server;
+      if (!silent) {
+        const displayHost = host === '0.0.0.0' ? 'localhost' : host;
+        console.log(`BiliMusic running at http://${displayHost}:${port}`);
+      }
+      resolve({ app, server, port, host });
+    });
+
+    server.once('error', (error) => {
+      reject(error);
+    });
+  });
+}
+
+export async function stopServer() {
+  if (!activeServer?.listening) return;
+
+  await new Promise((resolve) => {
+    activeServer.close(() => resolve());
+  });
+  activeServer = null;
+}
+
+const directRunEntry = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : '';
+if (directRunEntry && import.meta.url === directRunEntry) {
+  startServer().catch((error) => {
+    console.error('[startup error]', error?.message || error);
+    process.exit(1);
+  });
+}

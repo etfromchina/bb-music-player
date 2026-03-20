@@ -14,14 +14,17 @@
 
       <section class="player" id="player-container">
         <section class="control-area">
+          <div id="desktop-drag-handle" class="desktop-drag-handle hidden"></div>
           <div id="cover-wrapper" class="cover-wrapper empty">
             <img id="cover-img" class="cover-image hidden" alt="封面" referrerpolicy="no-referrer" />
             <div id="cover-fallback" class="cover-fallback">♪</div>
           </div>
 
           <div class="actions-top">
+            <button id="desktop-min-btn" class="icon-btn hidden" title="最小化">—</button>
+            <button id="desktop-close-btn" class="icon-btn hidden" title="关闭窗口">✕</button>
             <button id="pip-btn" class="icon-btn" title="独立悬浮窗口 (置顶)">▣</button>
-            <button id="clear-btn" class="icon-btn" title="清空列表">✕</button>
+            <button id="clear-btn" class="icon-btn" title="清空列表">⌫</button>
           </div>
 
           <div class="meta-block">

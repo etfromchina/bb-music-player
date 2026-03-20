@@ -11,6 +11,7 @@
 - 支持音量控制、列表折叠、封面显示
 - 支持 Document Picture-in-Picture (PiP) 悬浮窗口
 - 支持将已添加链接保存到 cookie，并在下次访问时自动恢复
+- 支持 Electron 桌面模式（无浏览器地址栏、独立窗口）
 
 ## Tech Stack
 
@@ -44,12 +45,33 @@ npm run dev
 
 默认地址：`http://localhost:30030`
 
+## Desktop (EXE) Development
+
+```bash
+npm install
+npm run desktop:dev
+```
+
+说明：
+- 会在本机启动一个独立的 Electron 播放器窗口（默认置顶、无系统边框）。
+- 桌面模式仍复用同一套后端接口，不影响网页版本。
+
+## Build EXE
+
+```bash
+npm run desktop:build
+```
+
+打包完成后，产物位于 `dist/`（Windows `portable` 可执行文件）。
+
 ## Project Structure
 
 - `server.js`: 后端服务与解析/代理接口
 - `public/index.html`: 播放器结构
 - `public/styles.css`: UI 样式
 - `public/app.js`: 前端状态与交互逻辑
+- `electron/main.cjs`: Electron 主进程（窗口、IPC、本地服务启动）
+- `electron/preload.cjs`: Electron 预加载桥接
 
 ## Notes
 

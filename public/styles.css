@@ -13,6 +13,12 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  width: 100%;
+  height: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -49,12 +55,35 @@ body {
   position: relative;
 }
 
+body.desktop-mode {
+  background: transparent;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.desktop-mode .page {
+  min-height: 0;
+  padding: 0;
+  display: block;
+}
+
 .control-area {
   background: var(--card-head);
   min-height: 126px;
   padding: 10px 14px 10px;
   position: relative;
   border-bottom: 1px solid var(--line);
+}
+
+.desktop-drag-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 24px;
+  display: none;
+  z-index: 1;
+  -webkit-app-region: drag;
 }
 
 .cover-wrapper {
@@ -104,6 +133,7 @@ body {
   top: 6px;
   display: flex;
   gap: 6px;
+  z-index: 2;
 }
 
 .icon-btn {
@@ -115,6 +145,19 @@ body {
   border-radius: 8px;
   width: 30px;
   height: 30px;
+}
+
+body.desktop-mode .icon-btn,
+body.desktop-mode .control-btn,
+body.desktop-mode .play-btn,
+body.desktop-mode #volume-slider,
+body.desktop-mode .track,
+body.desktop-mode .album-remove,
+body.desktop-mode .btn-muted,
+body.desktop-mode .btn-primary,
+body.desktop-mode .modal-card,
+body.desktop-mode .modal-form input {
+  -webkit-app-region: no-drag;
 }
 
 .icon-btn:hover {
@@ -476,6 +519,22 @@ body {
 
 .hidden {
   display: none !important;
+}
+
+body.desktop-mode .desktop-drag-handle {
+  display: block;
+}
+
+body.desktop-mode .tips {
+  display: none;
+}
+
+body.desktop-mode #pip-btn {
+  display: none;
+}
+
+body.desktop-mode .player {
+  margin: 0;
 }
 
 @keyframes spin {

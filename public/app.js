@@ -14,9 +14,11 @@ const state = {
   originalParent: null,
   isPlaylistCollapsed: false,
   audioQuality: 'high',
+  desktopMode: false,
 };
 
 const dom = {
+  dragHandle: document.getElementById('desktop-drag-handle'),
   playerContainer: document.getElementById('player-container'),
   tips: document.getElementById('tips'),
   addModal: document.getElementById('add-modal'),
@@ -31,6 +33,8 @@ const dom = {
   prevBtn: document.getElementById('prev-btn'),
   playBtn: document.getElementById('play-btn'),
   nextBtn: document.getElementById('next-btn'),
+  desktopMinBtn: document.getElementById('desktop-min-btn'),
+  desktopCloseBtn: document.getElementById('desktop-close-btn'),
   clearBtn: document.getElementById('clear-btn'),
   pipBtn: document.getElementById('pip-btn'),
   playlist: document.getElementById('playlist'),
@@ -42,6 +46,21 @@ const dom = {
   qualityBtn: document.getElementById('quality-btn'),
   audio: document.getElementById('audio'),
 };
+
+function isDesktopMode() {
+  const query = new URLSearchParams(window.location.search);
+  return query.get('desktop') === '1' && Boolean(window.desktopAPI?.isDesktop);
+}
+
+function initDesktopMode() {
+  if (!isDesktopMode()) return;
+
+  state.desktopMode = true;
+  document.body.classList.add('desktop-mode');
+  dom.dragHandle.classList.remove('hidden');
+  dom.desktopMinBtn.classList.remove('hidden');
+  dom.desktopCloseBtn.classList.remove('hidden');
+}
 
 function buildAudioUrl(url, quality) {
   const sep = url.includes('?') ? '&' : '?';
@@ -313,6 +332,8 @@ function toggleQuality() {
 }
 
 function setupDocumentPiP() {
+  if (state.desktopMode) return;
+
   if (state.pipWindow) {
     state.pipWindow.close();
     return;
@@ -484,6 +505,16 @@ async function restoreFromCookie() {
 }
 
 function bindEvents() {
+  if (state.desktopMode) {
+    dom.desktopMinBtn.addEventListener('click', () => {
+      window.desktopAPI?.minimizeWindow?.();
+    });
+
+    dom.desktopCloseBtn.addEventListener('click', () => {
+      window.desktopAPI?.closeWindow?.();
+    });
+  }
+
   dom.playBtn.addEventListener('click', togglePlay);
   dom.prevBtn.addEventListener('click', playPrev);
   dom.nextBtn.addEventListener('click', playNext);
@@ -565,6 +596,7 @@ function bindEvents() {
 }
 
 dom.audio.volume = 0.8;
+initDesktopMode();
 bindEvents();
 updateAll();
 restoreFromCookie();
