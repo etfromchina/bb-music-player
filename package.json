@@ -1,15 +1,54 @@
 {
-  "name": "bili-music-player",
-  "version": "1.0.0",
+  "name": "w-music-lite",
+  "version": "1.0.1-lite.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "node server.js",
-    "start": "NODE_ENV=production node server.js"
+    "start": "NODE_ENV=production node server.js",
+    "desktop:dev": "electron .",
+    "desktop:build": "electron-builder --win dir zip"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
     "axios": "^1.7.9",
     "cors": "^2.8.5",
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "electron": "^22.3.27",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.etfromchina.wmusiclite",
+    "productName": "w-music-Lite",
+    "asar": true,
+    "electronLanguages": [
+      "en-US",
+      "zh-CN"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "public/**/*",
+      "server.js",
+      "server.cjs",
+      "icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      "icon.png"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "icon": "icon.png",
+      "target": [
+        "dir",
+        "zip"
+      ]
+    }
   }
 }
