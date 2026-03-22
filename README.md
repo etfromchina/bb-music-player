@@ -11,9 +11,9 @@ The project currently has two usage modes:
 
 The current recommended desktop release is the Lite build:
 
-- Release page: [w-music-Lite v1.0.1-lite.0](https://github.com/etfromchina/bb-music-player/releases/tag/v1.0.1)
-- Download: [w-music-Lite-1.0.1-lite.0-win.zip](https://github.com/etfromchina/bb-music-player/releases/download/v1.0.1/w-music-Lite-1.0.1-lite.0-win.zip)
-- Lite source branch: [codex/w-music-Lite](https://github.com/etfromchina/bb-music-player/tree/codex/w-music-Lite)
+- Release page: [w-music-Lite v1.0.1-lite.0](https://github.com/etfromchina/w-music/releases/tag/v1.0.1)
+- Download: [w-music-Lite-1.0.1-lite.0-win.zip](https://github.com/etfromchina/w-music/releases/download/v1.0.1/w-music-Lite-1.0.1-lite.0-win.zip)
+- Lite source branch: [codex/w-music-Lite](https://github.com/etfromchina/w-music/tree/codex/w-music-Lite)
 
 Why Lite is recommended:
 
@@ -92,7 +92,7 @@ Main project build output is written to `dist/`.
 
 If you want the smaller Lite desktop variant, use the separate Lite source branch:
 
-- [codex/w-music-Lite](https://github.com/etfromchina/bb-music-player/tree/codex/w-music-Lite)
+- [codex/w-music-Lite](https://github.com/etfromchina/w-music/tree/codex/w-music-Lite)
 
 The Lite branch builds these desktop artifacts:
 
@@ -101,13 +101,31 @@ The Lite branch builds these desktop artifacts:
 
 ## Project structure
 
-- `public/index.html`: shared player markup
-- `public/styles.css`: shared player styles
-- `public/app.js`: shared player state and interactions
-- `server.js` / `server.cjs`: backend service and parse/proxy endpoints
-- `electron/main.cjs`: Electron main process
-- `electron/preload.cjs`: Electron preload bridge
-- `WORKLOG.md`: desktop-focused work log
+This repository is one shared project with two runtime forms:
+
+- Web mode: served by the local Node.js service in the browser
+- Desktop mode: the same player UI wrapped by Electron as a Windows app
+
+Directory responsibilities:
+
+- `public/`: shared renderer layer used by both Web and EXE
+  contains the player markup, styling, interactions, and layout switching logic
+- `server.js` / `server.cjs` / `server-bootstrap.mjs`: shared backend layer used by both Web and EXE
+  provides parse endpoints, audio proxying, and local service bootstrap
+- `electron/`: EXE-only desktop shell
+  controls the Electron window, preload bridge, startup flow, and desktop-specific behavior
+- `package.json`: shared scripts and build configuration
+  manages local development, desktop development, and desktop packaging
+- `dist/`: build output only
+  contains generated desktop artifacts and is not treated as core source
+- `WORKLOG.md`: desktop-focused implementation notes and decisions
+
+Quick rule of thumb:
+
+- if you change `public/`, Web and EXE usually both change
+- if you change `server.*`, Web and EXE usually both change
+- if you change `electron/`, only the EXE changes
+- if you change `dist/`, you are looking at output, not source
 
 ## Notes
 
