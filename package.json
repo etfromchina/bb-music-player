@@ -1,6 +1,6 @@
 {
-  "name": "bili-music-player",
-  "version": "1.0.0",
+  "name": "w-music",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -8,7 +8,8 @@
     "dev": "node server.js",
     "start": "NODE_ENV=production node server.js",
     "desktop:dev": "electron .",
-    "desktop:build": "electron-builder --win portable"
+    "desktop:prepare-icon": "powershell -NoProfile -Command \"Copy-Item -Path '.\\\\dist\\\\icon.png' -Destination '.\\\\icon.png' -Force\"",
+    "desktop:build": "npm run desktop:prepare-icon && electron-builder --win dir nsis"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
@@ -17,12 +18,12 @@
     "express": "^4.21.2"
   },
   "devDependencies": {
-    "electron": "^36.0.0",
+    "electron": "^22.3.27",
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "com.etfromchina.bbmusicplayer",
-    "productName": "BiliMusic",
+    "appId": "com.etfromchina.wmusic",
+    "productName": "w-music",
     "asar": true,
     "directories": {
       "output": "dist"
@@ -31,12 +32,19 @@
       "electron/**/*",
       "public/**/*",
       "server.js",
+      "server.cjs",
+      "icon.png",
       "package.json"
+    ],
+    "extraResources": [
+      "icon.png"
     ],
     "win": {
       "signAndEditExecutable": false,
+      "icon": "icon.png",
       "target": [
-        "portable"
+        "dir",
+        "nsis"
       ]
     }
   }

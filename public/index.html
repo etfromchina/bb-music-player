@@ -1,84 +1,183 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BiliMusic - B站/YouTube 音频精简播放器</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>w-music</title>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <main class="page" id="main-container">
-      <section class="tips" id="tips">
-        <p>提示：点列表右上角「+」添加 Bilibili 或 YouTube 链接，可持续追加到当前歌单并自动保存。</p>
-      </section>
+  <body class="ui-medium">
+    <main class="app" id="main-container">
+      <section class="window-shell" id="player-container">
+        <div id="desktop-drag-handle" class="desktop-drag-handle hidden" aria-hidden="true"></div>
 
-      <section class="player" id="player-container">
-        <section class="control-area">
-          <div id="desktop-drag-handle" class="desktop-drag-handle hidden"></div>
-          <div id="cover-wrapper" class="cover-wrapper empty">
-            <img id="cover-img" class="cover-image hidden" alt="封面" referrerpolicy="no-referrer" />
-            <div id="cover-fallback" class="cover-fallback">♪</div>
+        <header class="window-header">
+          <div class="brand">
+            <img src="./assets/w-logo.png" alt="w-music logo" class="brand-logo" />
+            <span class="brand-name">w-music</span>
           </div>
 
-          <div class="actions-top">
-            <button id="desktop-min-btn" class="icon-btn hidden" title="最小化">—</button>
-            <button id="desktop-close-btn" class="icon-btn hidden" title="关闭窗口">✕</button>
-            <button id="pip-btn" class="icon-btn" title="独立悬浮窗口 (置顶)">▣</button>
-            <button id="clear-btn" class="icon-btn" title="清空列表">⌫</button>
+          <div class="mode-switch" aria-label="窗口模式">
+            <button id="mode-large-btn" class="mode-pill" type="button">L</button>
+            <button id="mode-medium-btn" class="mode-pill active" type="button">M</button>
+            <button id="mode-small-btn" class="mode-pill" type="button">S</button>
           </div>
 
-          <div class="meta-block">
-            <p id="album-title" class="album-title">等待解析...</p>
-            <p id="now-playing" class="now-playing">当前无播放任务</p>
+          <div class="window-actions">
+            <button id="desktop-min-btn" class="chrome-btn hidden" type="button" title="最小化" aria-label="最小化">
+              <span></span>
+            </button>
+            <button id="desktop-close-btn" class="chrome-btn hidden close" type="button" title="关闭" aria-label="关闭">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7.4 6 6 7.4 10.6 12 6 16.6 7.4 18l4.6-4.6 4.6 4.6 1.4-1.4-4.6-4.6L18 7.4 16.6 6 12 10.6 7.4 6Z"></path>
+              </svg>
+            </button>
           </div>
+        </header>
 
-          <div class="play-controls">
-            <button id="prev-btn" class="control-btn" disabled title="上一首">⏮</button>
-            <button id="play-btn" class="play-btn" disabled title="播放/暂停">▶</button>
-            <button id="next-btn" class="control-btn" disabled title="下一首">⏭</button>
-          </div>
+        <section class="window-body">
+          <section class="hero-pane">
+            <div class="hero-glow" aria-hidden="true"></div>
+            <div id="cover-wrapper" class="cover-frame empty">
+              <img id="cover-img" class="cover-image hidden" alt="专辑封面" referrerpolicy="no-referrer" />
+              <div id="cover-fallback" class="cover-fallback">w</div>
+            </div>
 
-          <div class="volume-row">
-            <span class="volume-icon">🔊</span>
-            <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.8" />
-            <span id="volume-text" class="volume-text">80%</span>
-            <button id="quality-btn" class="icon-btn quality-btn" title="切换音质">H</button>
-          </div>
+            <div class="meta-block">
+              <span class="quality-tag">HI-RES</span>
+              <h1 id="album-title" class="album-title">等待解析</h1>
+              <p id="now-playing" class="now-playing">请添加 Bilibili 或 YouTube 链接开始播放</p>
+            </div>
+          </section>
+
+          <section class="player-card">
+            <div class="progress-block">
+              <div class="time-row">
+                <span id="current-time">00:00</span>
+                <span id="total-time">00:00</span>
+              </div>
+              <input id="progress-slider" type="range" min="0" max="100" step="0.1" value="0" aria-label="播放进度" />
+            </div>
+
+            <div class="control-row">
+              <button class="secondary-icon" id="shuffle-btn" type="button" title="随机播放" aria-label="随机播放">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M16 5h3v3h-2V7.4l-3.2 3.2-1.4-1.4L15.6 6H16V5ZM4 7h3.2a4 4 0 0 1 3.1 1.5l4.8 6A2 2 0 0 0 16.7 15H20v2h-3.3a4 4 0 0 1-3.1-1.5l-4.8-6A2 2 0 0 0 7.2 9H4V7Zm13 9.6V16h2v3h-3v-2h.6l-3.2-3.2 1.4-1.4 3.2 3.2ZM4 15h3.2c.7 0 1.4-.3 1.8-.9l1.7-2.1 1.4 1.4-1.5 1.9A4 4 0 0 1 7.2 17H4v-2Z"></path>
+                </svg>
+              </button>
+
+              <div class="primary-controls">
+                <button id="prev-btn" class="media-btn" type="button" title="上一首" aria-label="上一首" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 6h2v12H8V6Zm3 6 8-6v12l-8-6Z"></path>
+                  </svg>
+                </button>
+                <button id="play-btn" class="play-btn" type="button" title="播放或暂停" aria-label="播放或暂停" disabled></button>
+                <button id="next-btn" class="media-btn" type="button" title="下一首" aria-label="下一首" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M14 6h2v12h-2V6Zm-9 6 8 6V6l-8 6Z"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <button class="secondary-icon" id="favorite-btn" type="button" title="收藏" aria-label="收藏">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 21 4.6 13.8A4.9 4.9 0 0 1 11.5 7L12 7.5l.5-.5a4.9 4.9 0 0 1 6.9 6.8L12 21Z"></path>
+                </svg>
+              </button>
+            </div>
+
+            <div class="utility-row">
+              <div class="volume-group">
+                <span class="utility-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 9h3l4-4v14l-4-4H5V9Zm10.5 3a3.5 3.5 0 0 0-2-3.2v6.4a3.5 3.5 0 0 0 2-3.2Z"></path>
+                  </svg>
+                </span>
+                <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="音量" />
+                <span id="volume-text" class="volume-text">80%</span>
+              </div>
+
+              <button id="quality-btn" class="quality-btn" type="button" title="切换音质">H</button>
+            </div>
+          </section>
+
+          <section class="input-row">
+            <button id="add-link-btn" class="add-link-btn" type="button">Paste link...</button>
+            <div class="input-actions">
+              <button id="toggle-list-btn" class="mini-action-btn" type="button" title="展开或收起列表" aria-label="展开或收起列表"></button>
+              <button id="clear-btn" class="mini-action-btn" type="button" title="清空播放列表" aria-label="清空播放列表">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 6h10l-1 13H8L7 6Zm3-3h4l1 2h4v2H5V5h4l1-2Z"></path>
+                </svg>
+              </button>
+            </div>
+          </section>
+
+          <section class="queue-card">
+            <header class="queue-header">
+              <h2>Queue</h2>
+              <span id="playlist-count">0 TRACKS</span>
+            </header>
+            <section id="playlist" class="playlist"></section>
+          </section>
         </section>
 
-        <section class="playlist-panel">
-          <header class="playlist-header">
-            <p class="playlist-title">播放列表</p>
-            <div class="playlist-actions">
-              <button id="add-link-btn" class="icon-btn" title="添加链接">＋</button>
-              <button id="toggle-list-btn" class="icon-btn" title="展开/收起列表">◧</button>
-            </div>
-          </header>
-          <section id="playlist" class="playlist"></section>
+        <section class="mini-widget">
+          <div id="mini-cover-wrapper" class="mini-cover-frame empty">
+            <img id="mini-cover-img" class="mini-cover hidden" alt="迷你封面" referrerpolicy="no-referrer" />
+            <div id="mini-cover-fallback" class="mini-cover-fallback">w</div>
+          </div>
+
+          <div class="mini-meta">
+            <p id="mini-title" class="mini-title">等待解析</p>
+            <p id="mini-artist" class="mini-artist">w-music</p>
+          </div>
+
+          <div class="mini-actions">
+            <button id="mini-play-btn" class="mini-play-btn" type="button" title="播放或暂停" aria-label="播放或暂停"></button>
+            <button id="mini-next-btn" class="mini-btn" type="button" title="下一首" aria-label="下一首">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 6h2v12h-2V6Zm-9 6 8 6V6l-8 6Z"></path>
+              </svg>
+            </button>
+            <button id="mini-expand-btn" class="mini-btn" type="button" title="展开" aria-label="展开">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 4h5v2H8.4l4.3 4.3-1.4 1.4L7 7.4V11H5V4h2Zm10 0h2v7h-2V7.4l-4.3 4.3-1.4-1.4L15.6 6H12V4h5Zm-5.7 8.3 1.4 1.4L8.4 18H12v2H5v-7h2v3.6l4.3-4.3Zm1.4 1.4L17 18.1V14h2v7h-7v-2h3.6l-4.3-4.3 1.4-1.4Z"></path>
+              </svg>
+            </button>
+          </div>
         </section>
       </section>
 
       <section id="add-modal" class="modal hidden" aria-hidden="true">
         <div class="modal-card">
-          <p class="modal-title">添加链接</p>
+          <div class="modal-header">
+            <h3>添加链接</h3>
+            <button id="cancel-add-btn" class="modal-close-btn" type="button" aria-label="关闭">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7.4 6 6 7.4 10.6 12 6 16.6 7.4 18l4.6-4.6 4.6 4.6 1.4-1.4-4.6-4.6L18 7.4 16.6 6 12 10.6 7.4 6Z"></path>
+              </svg>
+            </button>
+          </div>
+
           <form id="add-form" class="modal-form">
             <input
               id="url-input"
               type="text"
-              placeholder="粘贴视频链接（支持 bilibili.com / b23.tv / youtube.com / youtu.be）"
+              placeholder="粘贴 Bilibili / b23.tv / YouTube 链接"
+              autocomplete="off"
             />
-            <div class="modal-actions">
-              <button type="button" id="cancel-add-btn" class="btn-muted">取消</button>
-              <button type="submit" id="confirm-add-btn" class="btn-primary">解析并添加</button>
-            </div>
+            <button id="confirm-add-btn" class="submit-btn" type="submit">解析并加入播放列表</button>
           </form>
-          <span id="loader" class="loader hidden" aria-hidden="true"></span>
+
+          <div id="loader" class="loader hidden" aria-live="polite">正在解析...</div>
         </div>
       </section>
 
       <audio id="audio" preload="metadata"></audio>
     </main>
 
-    <script src="/app.js" type="module"></script>
+    <script src="./app.js" type="module"></script>
   </body>
 </html>

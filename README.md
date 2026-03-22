@@ -1,79 +1,101 @@
-﻿# BiliMusic
+# w-music
 
-一个基于网页的轻量音乐播放器，支持把 Bilibili 或 YouTube 视频链接解析成可播放音频列表。
+`w-music` is a lightweight music player that parses Bilibili and YouTube links into playable audio playlists.
+
+The project currently ships in two forms:
+
+- Web mode: a browser-based player served by the local Node.js app
+- Desktop mode: an Electron-based Windows app with large / medium / small player layouts
+
+## Current status
+
+- The desktop app is the main polished target right now.
+- The renderer layer is shared by both web mode and Electron mode.
+- That means most UI changes in `public/` affect both the web page and the desktop app.
+- Electron-specific behavior lives in `electron/` and only affects the desktop build.
 
 ## Features
 
-- 支持 `bilibili.com` / `b23.tv` 链接解析
-- 支持 `youtube.com` / `youtu.be` 链接解析
-- 支持多链接追加，合并为一个连续播放列表
-- 支持播放/暂停、上一首、下一首、点击切歌、自动下一首
-- 支持音量控制、列表折叠、封面显示
-- 支持 Document Picture-in-Picture (PiP) 悬浮窗口
-- 支持将已添加链接保存到 cookie，并在下次访问时自动恢复
-- 支持 Electron 桌面模式（无浏览器地址栏、独立窗口）
+- Parse `bilibili.com` and `b23.tv` links into playlists
+- Parse `youtube.com` and `youtu.be` links into playlists
+- Append multiple source links into one continuous queue
+- Play, pause, previous, next, seek, volume, and quality switching
+- Cover art, queue view, large / medium / small layouts
+- Electron desktop window controls and floating rounded-card UI
 
-## Tech Stack
+## Tech stack
 
-- Frontend: Vanilla JavaScript + HTML/CSS
+- Frontend: Vanilla JavaScript + HTML + CSS
 - Backend: Node.js + Express
 - HTTP: Axios
-- YouTube 解析: `@distube/ytdl-core`
+- YouTube parsing: `@distube/ytdl-core`
+- Desktop shell: Electron
 
 ## API
 
 ### `GET /api/parse?url={video_url}`
 
-输入 Bilibili 或 YouTube 链接，返回专辑标题、封面、播放列表。
+Returns album title, cover image, and playlist items for a supported Bilibili or YouTube link.
 
 ### `GET /api/audio/:bvid/:cid`
 
-Bilibili 音频流代理接口，供前端 `<audio>` 直接播放。
-支持 `quality=high|low`（默认 `high`）。
+Bilibili audio proxy endpoint.
 
 ### `GET /api/audio/youtube/:videoId`
 
-YouTube 音频流代理接口，供前端 `<audio>` 直接播放。
-支持 `quality=high|low`（默认 `high`）。
+YouTube audio proxy endpoint.
 
-## Local Development
+Both audio endpoints support `quality=high|low`.
+
+## Local development
 
 ```bash
 npm install
 npm run dev
 ```
 
-默认地址：`http://localhost:30030`
+Default local URL:
 
-## Desktop (EXE) Development
+```text
+http://localhost:30030
+```
+
+## Desktop development
 
 ```bash
 npm install
 npm run desktop:dev
 ```
 
-说明：
-- 会在本机启动一个独立的 Electron 播放器窗口（默认置顶、无系统边框）。
-- 桌面模式仍复用同一套后端接口，不影响网页版本。
-
-## Build EXE
+## Build desktop release
 
 ```bash
 npm run desktop:build
 ```
 
-打包完成后，产物位于 `dist/`（Windows `portable` 可执行文件）。
+Build output is written to `dist/`.
 
-## Project Structure
+Recommended desktop artifact:
 
-- `server.js`: 后端服务与解析/代理接口
-- `public/index.html`: 播放器结构
-- `public/styles.css`: UI 样式
-- `public/app.js`: 前端状态与交互逻辑
-- `electron/main.cjs`: Electron 主进程（窗口、IPC、本地服务启动）
-- `electron/preload.cjs`: Electron 预加载桥接
+- `dist/w-music-win-unpacked-1.0.1.zip`
+
+Also generated during build:
+
+- `dist/win-unpacked/w-music.exe`
+- `dist/w-music Setup 1.0.1.exe`
+
+## Project structure
+
+- `public/index.html`: shared player markup
+- `public/styles.css`: shared player styles
+- `public/app.js`: shared player state and interactions
+- `server.js` / `server.cjs`: backend service and parse/proxy endpoints
+- `electron/main.cjs`: Electron main process
+- `electron/preload.cjs`: Electron preload bridge
+- `WORKLOG.md`: desktop-focused work log
 
 ## Notes
 
-- Bilibili / YouTube 都有一定风控策略，个别链接可能会解析失败或音频拉取失败。
-- Document PiP 依赖较新版本 Chrome/Edge，且不支持部分受限环境。
+- Some Bilibili and YouTube links can fail due to upstream restrictions or rate limits.
+- The web player and desktop player share the same renderer, so UI tweaks usually affect both.
+- The Electron-specific window shell, startup flow, and packaging logic do not affect plain web mode.
