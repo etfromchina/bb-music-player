@@ -1,24 +1,38 @@
-﻿import express from 'express';
-import cors from 'cors';
-import { createRequire } from 'module';
-import { ReadableStream as NodeReadableStream, WritableStream as NodeWritableStream, TransformStream as NodeTransformStream } from 'stream/web';
-import path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
-import { spawn } from 'child_process';
-import ytdl from '@distube/ytdl-core';
+const { ReadableStream: NodeReadableStream, WritableStream: NodeWritableStream, TransformStream: NodeTransformStream } =
+  require('stream/web');
+const { Blob: NodeBlob } = require('buffer');
 
 if (typeof globalThis.ReadableStream === 'undefined') globalThis.ReadableStream = NodeReadableStream;
 if (typeof globalThis.WritableStream === 'undefined') globalThis.WritableStream = NodeWritableStream;
 if (typeof globalThis.TransformStream === 'undefined') globalThis.TransformStream = NodeTransformStream;
-const require = createRequire(import.meta.url);
+if (typeof globalThis.Blob === 'undefined') globalThis.Blob = NodeBlob;
+if (typeof globalThis.DOMException === 'undefined') {
+  globalThis.DOMException = class DOMException extends Error {
+    constructor(message = '', name = 'Error') {
+      super(message);
+      this.name = name;
+    }
+  };
+}
+if (typeof globalThis.File === 'undefined') {
+  globalThis.File = class File extends NodeBlob {
+    constructor(parts, name, options = {}) {
+      super(parts, options);
+      this.name = String(name || '');
+      this.lastModified = Number(options?.lastModified || Date.now());
+    }
+  };
+}
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const { spawn } = require('child_process');
+const ytdl = require('@distube/ytdl-core');
 const axios = require('axios');
 
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 30030;
 let activeServer = null;
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 app.use(cors());
 app.use(express.json());
@@ -537,7 +551,7 @@ app.get('*', (_, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-export async function startServer({ port = DEFAULT_PORT, host = '0.0.0.0', silent = false } = {}) {
+async function startServer({ port = DEFAULT_PORT, host = '0.0.0.0', silent = false } = {}) {
   if (activeServer?.listening) {
     return { app, server: activeServer, port, host };
   }
@@ -558,7 +572,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '0.0.0.0', silen
   });
 }
 
-export async function stopServer() {
+async function stopServer() {
   if (!activeServer?.listening) return;
 
   await new Promise((resolve) => {
@@ -567,10 +581,14 @@ export async function stopServer() {
   activeServer = null;
 }
 
-const directRunEntry = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : '';
-if (directRunEntry && import.meta.url === directRunEntry) {
+if (require.main === module) {
   startServer().catch((error) => {
     console.error('[startup error]', error?.message || error);
     process.exit(1);
   });
 }
+
+module.exports = {
+  startServer,
+  stopServer,
+};
